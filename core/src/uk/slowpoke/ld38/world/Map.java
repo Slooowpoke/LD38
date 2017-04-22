@@ -22,6 +22,7 @@ public class Map {
 	int data[][] = new int[WIDTH][HEIGHT];
 	int border[][] = new int[WIDTH][HEIGHT];
 	Tile world[][] = new Tile[WIDTH][HEIGHT];
+	boolean borderOnly = true;
 	
 	//Random variable
 	Random random = new Random();
@@ -107,18 +108,6 @@ public class Map {
 			}
 
 		}
-		
-		
-		// now that the islands are assigned, create the borders
-		// create the borders
-		for(int x = 0; x < WIDTH; x++){
-			for(int y = 0; y < HEIGHT; y++){
-				if(data[x][y] != WATER){
-					checkTile(x,y,data[x][y]);
-				}
-			}
-		}
-
 	}
 	
 	public ArrayList<Vector2> getGroundForIsland(int x, int y){
@@ -202,15 +191,27 @@ public class Map {
 		batch.rect(0, 0,800,600);
 		for(int x = 0; x < WIDTH; x++){
 			for(int y = 0; y < HEIGHT; y++){
-				if(data[x][y] == TEMP){
-					batch.setColor(Color.RED);
-					batch.rect(x, y,1,1);
-				}
+//				if(data[x][y] == TEMP){
+//					batch.setColor(Color.RED);
+//					batch.rect(x, y,1,1);
+//				}
 				
-				if(world[x][y] != null){
-					batch.setColor(world[x][y].colour);
-					batch.rect(x, y,1,1);
-				}
+				
+					if(!borderOnly){
+						if(world[x][y] != null){
+//							batch.setColor(world[x][y].colour);
+//							batch.rect(x, y,1,1);
+						}
+					}else{
+						if(checkForWaterNeighbour(x,y)){
+							if(world[x][y] != null){
+								batch.setColor(world[x][y].colour);
+								batch.rect(x, y,1,1);
+							}
+						}
+					}
+				
+
 
 //				if(world[x][y] != WATER && world[x][y] != TEMP){
 ////					int tempBorder = border[x][y];
@@ -234,5 +235,37 @@ public class Map {
 			}
 		}
 		
+	}
+
+	private boolean checkForWaterNeighbour(int x, int y) {
+		if(x-1 > 0){
+			// we are all good to the left
+			if(world[x-1][y] == null){
+				// if its water convert us to a border.
+				return true;
+			}
+		}
+		if(x+1 < WIDTH){
+			// we are all good to the right
+			if(world[x+1][y] == null){
+				// if its water convert us to a border.
+				return true;
+			}
+		}
+		if(y-1 > 0){
+			// we are all good above 
+			if(world[x][y-1] == null){
+				// if its water convert us to a border.
+				return true;
+			}
+		}
+		if(y+1 < HEIGHT){
+			// we are all good below.
+			if(world[x][y+1] == null){
+				// if its water convert us to a border.
+				return true;
+			}
+		}
+		return false;
 	}
 }
