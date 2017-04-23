@@ -1,5 +1,6 @@
 package uk.slowpoke.ld38;
 
+import java.awt.RenderingHints.Key;
 import java.util.ArrayList;
 
 import com.badlogic.gdx.ApplicationAdapter;
@@ -16,14 +17,28 @@ import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.math.Vector3;
 
+import uk.slowpoke.ld38.entities.AI;
 import uk.slowpoke.ld38.entities.Player;
 import uk.slowpoke.ld38.entities.Unit;
+import uk.slowpoke.ld38.world.Island;
 import uk.slowpoke.ld38.world.Map;
 
 
 public class Game extends ApplicationAdapter implements InputProcessor {
 	SpriteBatch batch;
 	ShapeRenderer shapeBatch;
+	
+	// UI CONTROLS --
+	
+	boolean placingUnits = false;
+	int unitType = 0;
+	public static final int HQ = 0;
+	public static final int BOMBER = 1;
+	public static final int SCOUT = 2;
+	public static final int MISSLE_LAUNCHER = 3;
+	public static final int ARTILLERY = 4;
+	
+	// --
 	
 	// CAMERA VARIABLES --
 	
@@ -60,7 +75,7 @@ public class Game extends ApplicationAdapter implements InputProcessor {
 		shapeBatch = new ShapeRenderer();
 		
 		players.add(new Player("Mali",new Color(Color.RED)));
-		players.add(new Player("BlueTeam",new Color(Color.BLUE)));
+		players.add(new AI("Player 2",new Color(Color.PURPLE)));
 		map = new Map();
 		
 		camera = new OrthographicCamera(30, 30 * (Gdx.graphics.getHeight() / Gdx.graphics.getWidth()));
@@ -84,14 +99,24 @@ public class Game extends ApplicationAdapter implements InputProcessor {
 		shapeBatch.begin(ShapeType.Filled);
 		map.render(shapeBatch);
 	
+//		for(Player player: players){
+//			ArrayList<Unit> units = player.getUnits();
+//			for(Unit unit: units){
+//				unit.render(shapeBatch);
+//			}
+//		}
+		shapeBatch.end();
+		
+		batch.setProjectionMatrix(camera.combined);
+		
+		batch.begin();
 		for(Player player: players){
 			ArrayList<Unit> units = player.getUnits();
 			for(Unit unit: units){
-				unit.renderCollision(shapeBatch);
+				unit.render(batch);
 			}
 		}
-		shapeBatch.end();
-		
+		batch.end();
 		shapeBatch.begin(ShapeType.Line);
 		shapeBatch.setColor(0,0,0,0.2f);
 		shapeBatch.rect(selection.x,selection.y,selection.width,selection.height);
@@ -142,6 +167,59 @@ public class Game extends ApplicationAdapter implements InputProcessor {
 //		camera.position.x = MathUtils.clamp(camera.position.x, effectiveViewportWidth / 2, 800 - effectiveViewportWidth / 2f);
 //		camera.position.y = MathUtils.clamp(camera.position.y, effectiveViewportHeight / 2, 600 - effectiveViewportHeight / 2f);
 
+		
+		for(Player player: players){
+			player.update(d);
+
+		}
+		
+		// pass units to each unit so it can check if its near any of them
+		for(Player player: players){
+//			player.update(d);
+			
+			for(Unit unit: player.getUnits()){
+				unit.update(d,map);
+
+				
+				// we only want to match the velocity's of our boids
+				
+				
+				for(Player differentPlayer: players){
+					Vector2 pvJ = new Vector2();
+					
+					for(Unit otherUnit: differentPlayer.getUnits()){
+						// check against all units unless its the same one
+						unit.steerAway(otherUnit);
+					}
+					
+					
+					// if it does not equal our current player
+					if(!differentPlayer.equals(player)){
+						// then we can check against this players units.
+
+						if(unit.checkNearUnits(differentPlayer.getUnits())){
+							
+						}
+						
+					}else{
+						// the same player
+						for(Unit otherUnit: differentPlayer.getUnits()){
+							if(!otherUnit.equals(this)){
+								pvJ.add(otherUnit.getVelocity());
+							}
+						}
+						double totalUnits = 1 / (differentPlayer.getUnits().size());
+						
+						unit.v1.mulAdd(pvJ, 0.10f);
+						
+						pvJ.mulAdd(pvJ, (float) totalUnits);
+						
+						unit.v3.mulAdd((pvJ.sub(unit.getVelocity())), 0.08f);
+					}
+				}
+			}
+
+		}
 	}
 	
 	@Override
@@ -163,6 +241,24 @@ public class Game extends ApplicationAdapter implements InputProcessor {
 		}
 		if(key == Keys.W || key == Keys.UP){
 			up = true;
+		}
+		if(key == Keys.SHIFT_LEFT){
+			placingUnits = !placingUnits;
+		}
+		if(key == Keys.NUM_0){
+			unitType = HQ;
+		}
+		if(key == Keys.NUM_1){
+			unitType = BOMBER;
+		}
+		if(key == Keys.NUM_2){
+			unitType = SCOUT;
+		}
+		if(key == Keys.NUM_3){
+			unitType = MISSLE_LAUNCHER;
+		}
+		if(key == Keys.NUM_4){
+			unitType = ARTILLERY;
 		}
 		return false;
 	}
@@ -199,9 +295,12 @@ public class Game extends ApplicationAdapter implements InputProcessor {
 		mouse.x = (int) (position.x);
 		mouse.y = (int) (position.y);
 
-		if(getPlayerByName("Mali") != null && button == 0){
+		if(getPlayerByName("Mali") != null && button == 0 && placingUnits){
 			// only add units if in that mode
-			getPlayerByName("Mali").addUnit((int)position.x, (int)position.y);
+			getPlayerByName("Mali").addUnit((int)position.x, (int)position.y,unitType);
+		}else if(!placingUnits){
+			// it could be a command to send them
+			getPlayerByName("Mali").target(mouse.x,mouse.y);
 		}
 		
 		// reset selection
