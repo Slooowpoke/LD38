@@ -17,7 +17,9 @@ public class Map {
 	// here we generate the map, from tiles!
 	// lets hope we can make it big enough
 	
-	private final int WIDTH = 800, HEIGHT = 600;
+	public static final int WIDTH = 400;
+
+	public static final int HEIGHT = 400;
 	
 	int data[][] = new int[WIDTH][HEIGHT];
 	int border[][] = new int[WIDTH][HEIGHT];
@@ -32,10 +34,10 @@ public class Map {
 	private final int RED = 1, BLUE = 2, GREEN = 3;
 	
 	// kinda temporary, just used for determining whose is whose.
-	List<Island> islands = new ArrayList<Island>();
+	private List<Island> islands = new ArrayList<Island>();
 	
 	public Map(){
-		SimplexNoise simplexNoise = new SimplexNoise(350,0.38,random.nextInt());
+		SimplexNoise simplexNoise = new SimplexNoise(300,0.38,random.nextInt());
 
 		for(int x = 0; x < WIDTH; x++){
 			for(int y = 0; y < HEIGHT; y++){
@@ -47,7 +49,7 @@ public class Map {
 		for(int x = 0; x < WIDTH; x++){
 			for(int y = 0; y < HEIGHT; y++){
 				double value = simplexNoise.getNoise(x, y);
-				if(value > 0.3){
+				if(value > 0.2){
 					data[x][y] = GROUND;
 				}
 			}
@@ -58,12 +60,24 @@ public class Map {
 		for(int x = 0; x < WIDTH; x++){
 			for(int y = 0; y < HEIGHT; y++){
 				if(data[x][y] == GROUND){
-					islands.add(new Island(getGroundForIsland(x,y)));
+					int count = 0;
+					int maxTries = 3;
+					while(true) {
+					    try {
+					    	getIslands().add(new Island(getGroundForIsland(x,y)));
+					    	break;
+					    }  catch(StackOverflowError e){
+					        // handle exception
+					    	System.out.println("Trying again");
+					        if (++count == maxTries) System.out.println(e);;
+					    }
+					}
+
 				}
 			}
 		}
 
-		List<Island> sorted = islands;
+		List<Island> sorted = getIslands();
 		
 		Collections.sort(sorted, new Comparator<Island>() {
 	        @Override public int compare(Island p1, Island p2) {
@@ -84,15 +98,15 @@ public class Map {
 			}
 		}
 
-		islands = islands.subList(Game.players.size(), islands.size());
+		setIslands(getIslands().subList(Game.players.size(), getIslands().size()));
 		
-		int islandsPerPlayer = islands.size()/Game.players.size();
+		int islandsPerPlayer = getIslands().size()/Game.players.size();
 		int totalAssigned = 0;
-		for(int start =  0; start < islands.size(); start+=islandsPerPlayer){
+		for(int start =  0; start < getIslands().size(); start+=islandsPerPlayer){
 			if(totalAssigned < Game.players.size()){
 				Player player = Game.players.get(totalAssigned);
-				int end = Math.min(start + islandsPerPlayer, islands.size());
-				List<Island> sublist = islands.subList(start, end);
+				int end = Math.min(start + islandsPerPlayer, getIslands().size());
+				List<Island> sublist = getIslands().subList(start, end);
 				
 				for(int i = 0; i < sublist.size(); i++){
 					Island island = sublist.get(i);
@@ -121,25 +135,33 @@ public class Map {
 			if(x-1 > 0){
 				// we are all good to the left
 				if(data[x-1][y] == GROUND){
+					
 					ground.addAll(getGroundForIsland(x-1,y));
+//					data[x-1][y] = TEMP;
 				}
 			}
 			if(x+1 < WIDTH){
 				// we are all good to the right
 				if(data[x+1][y] == GROUND){
+					
 					ground.addAll(getGroundForIsland(x+1,y));
+//					data[x+1][y] = TEMP;
 				}
 			}
 			if(y-1 > 0){
 				// we are all good above 
 				if(data[x][y-1] == GROUND){
+					
 					ground.addAll(getGroundForIsland(x,y-1));
+//					data[x][y-1] = TEMP;
 				}
 			}
 			if(y+1 < HEIGHT){
 				// we are all good below.
 				if(data[x][y+1] == GROUND){
+					
 					ground.addAll(getGroundForIsland(x,y+1));
+//					data[x][y+1] = TEMP;
 				}
 			}
 
@@ -188,7 +210,7 @@ public class Map {
 	
 	public void render(ShapeRenderer batch){
 		batch.setColor(Color.WHITE);
-		batch.rect(0, 0,800,600);
+		batch.rect(0, 0,WIDTH,HEIGHT);
 		for(int x = 0; x < WIDTH; x++){
 			for(int y = 0; y < HEIGHT; y++){
 //				if(data[x][y] == TEMP){
@@ -267,5 +289,13 @@ public class Map {
 			}
 		}
 		return false;
+	}
+
+	public List<Island> getIslands() {
+		return islands;
+	}
+
+	public void setIslands(List<Island> islands) {
+		this.islands = islands;
 	}
 }
