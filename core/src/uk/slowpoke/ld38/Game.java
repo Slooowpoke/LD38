@@ -13,6 +13,8 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.Pixmap.Format;
 import com.badlogic.gdx.graphics.Texture.TextureFilter;
 import com.badlogic.gdx.graphics.g2d.Batch;
+import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.Sprite;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
@@ -25,8 +27,8 @@ import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.math.Vector3;
 
-
 import uk.slowpoke.ld38.entities.AI;
+import uk.slowpoke.ld38.entities.Airbase;
 import uk.slowpoke.ld38.entities.Player;
 import uk.slowpoke.ld38.entities.Projectile;
 import uk.slowpoke.ld38.entities.Unit;
@@ -37,17 +39,22 @@ import uk.slowpoke.ld38.world.Map;
 public class Game extends ApplicationAdapter implements InputProcessor {
 	SpriteBatch batch;
 	ShapeRenderer shapeBatch;
+	SpriteBatch guiBatch;
 	
 	// UI CONTROLS --
 	
-	boolean placingUnits = false;
+	boolean placingUnits = true;
 	int unitType = 0;
 	public static final int HQ = 0;
 	public static final int BOMBER = 1;
 	public static final int SCOUT = 2;
 	public static final int MISSLE_LAUNCHER = 3;
 	public static final int ARTILLERY = 4;
+	public static final int AIRBASE = 5;
 	
+	public ArrayList<Button> buttons = new ArrayList<Button>();
+
+
 	// --
 	
 	// CAMERA VARIABLES --
@@ -87,7 +94,7 @@ public class Game extends ApplicationAdapter implements InputProcessor {
 	ArrayList<Light> lights = new ArrayList<Light>();
 	
 	public static float ambientIntensity = 0.1f;
-	public static Vector3 ambientColor = new Vector3(0.2f, 0.1f, 1f);
+	public static Vector3 ambientColor = new Vector3(1f, 1f, 1f);
 
 	String vertexShader;
 	String pixelShader;
@@ -114,7 +121,7 @@ public class Game extends ApplicationAdapter implements InputProcessor {
 	
 	// ROUND COUNTING LOGIC -- 
 	
-	public int roundCounter = PLACE_HQ;
+	public int roundCounter = MENU;
 	public static final int PLACE_HQ = 0;
 	public static final int PLACE_BUILDINGS = 1;
 	public static final int DEPLOY_SCOUTS = 2;
@@ -124,26 +131,48 @@ public class Game extends ApplicationAdapter implements InputProcessor {
 	
 	// --
 	
+	// FONTS --
+	
+	public static BitmapFont tiny,small,medium,largeish,large;
+		
+	// --
+	
+	float fade = 0f, fadeTarget = 0f;
+	boolean COMPLETED_GAME = false;
+	
+	public void resetEverything(){
+		create();
+	}
+	
 	@Override
 	public void create () {
+		Gdx.graphics.setTitle("LD38 - Slowpoke - It's a small world");
 		batch = new SpriteBatch();
+		guiBatch = new SpriteBatch();
 		shapeBatch = new ShapeRenderer();
 		map = new Map();
 		
 		players.add(new Player("Mali",new Color(Color.RED),map));
 		players.add(new AI("Player 2",new Color(Color.PURPLE),map));
 		map.generateIslands();
-		
+
 		for(Player player: players){
 			if (player.getClass() == AI.class) {
 				((AI) player).placeHQ();
 			}
 		}
-		
+		tiny = new BitmapFont(Gdx.files.internal("fonts/font-10.fnt"));
+		small = new BitmapFont(Gdx.files.internal("fonts/small.fnt"));
+		medium = new BitmapFont(Gdx.files.internal("fonts/font-21.fnt"));
+		largeish = new BitmapFont(Gdx.files.internal("fonts/largeish.fnt"));
+		large = new BitmapFont(Gdx.files.internal("fonts/font-32.fnt"));
 		
 		camera = new OrthographicCamera(30, 30 * (Gdx.graphics.getHeight() / Gdx.graphics.getWidth()));
 //		camera = new OrthographicCamera(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
 		camera.setToOrtho(false, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+		x = Map.WIDTH/2;
+		y = Map.HEIGHT/2;
+		
 		Gdx.input.setInputProcessor(this);
 		
 		lights.add(new Light(x,y,20,new Texture("light.png")));
@@ -162,7 +191,11 @@ public class Game extends ApplicationAdapter implements InputProcessor {
 		shader.setUniformf("ambientColor", ambientColor.x, ambientColor.y,
 				ambientColor.z, ambientIntensity);
 		shader.end();
-		
+
+		buttons.add(new Button(32,32,HQ));
+		buttons.add(new Button(32,32,MISSLE_LAUNCHER));
+		buttons.add(new Button(64,32,ARTILLERY));
+		buttons.add(new Button(96,32,AIRBASE));
 	} 
 
 	
@@ -170,135 +203,254 @@ public class Game extends ApplicationAdapter implements InputProcessor {
 	public void render () {
 		update(Gdx.graphics.getDeltaTime());
 
-		Matrix4 defaultProjectionMatrix = batch.getProjectionMatrix();
-		
-		Gdx.gl.glClearColor(0, 0, 0, 1);
-		Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
-
-		shader.begin();
-		shader.setUniformi("u_lightmap", 1);
-
-
-		ambientIntensity += (darkTarget-ambientIntensity)*0.1f;
-		
- 
-		shader.setUniformf("ambientColor",1f, 1f,
-				1f, ambientIntensity);
-		shader.end();
-		
-		fbo.begin();
-			
-			batch.setProjectionMatrix(camera.combined);
-			batch.setShader(defaultShader);
+		fade += (fadeTarget-fade)*0.1f;
+		if(roundCounter == MENU){
+			camera.zoom = 1f;
+			Gdx.gl.glClearColor(0.13f, 0.13f, 0.13f, 1);
 			Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 			
-			batch.begin();
-		
-				for(Light light:lights){
-//					light.render(batch);
-				}
-				for(Unit unit: getPlayerByName("Mali").getUnits()){
-					unit.light.render(batch);
-//					new Light(unit.getX()-unit.getWidth(),unit.getY()-unit.getHeight(),32,new Texture("light.png")).render(batch);;
-				}
-			
-			batch.setColor(1f, 1f, 1f, 1f);;
-			batch.end();
-		fbo.end();
+			guiBatch.begin();
+			GlyphLayout layout = new GlyphLayout();
+			large.setColor(Color.WHITE);
+			layout.setText(Game.large,"It's a small world.");	
+			large.draw(guiBatch, "It's a small world.", 20,50);
+
+			layout.setText(Game.medium,"Press [ SPACE [ to start.");	
 	
-		int width = Gdx.graphics.getWidth();
-	    int height = Gdx.graphics.getHeight();
-
-	    if(m_fboEnabled)      // enable or disable the supersampling
-	    {          
-
-	    	 m_fbo = new FrameBuffer(Format.RGB565, (int)(width * m_fboScaler), (int)(height * m_fboScaler), false);
-			m_fbo.getColorBufferTexture().setFilter(TextureFilter.Nearest, TextureFilter.Nearest);
-            m_fboRegion = new TextureRegion(m_fbo.getColorBufferTexture());
-//     
-            m_fboRegion.flip(false, true);
-	        m_fbo.begin();
-	        
-	        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
-		    // this is the main render function
-	        
-			shapeBatch.begin(ShapeType.Filled);
+			medium.draw(guiBatch, "Press [SPACE[ to start.", 20,120);
+			guiBatch.end();
 			
-			map.render(shapeBatch);
+	
+		}else if(roundCounter == GAMEOVER){
+			camera.zoom = 1f;
+			Gdx.gl.glClearColor(0.13f, 0.13f, 0.13f, 1);
+			Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+
+			Gdx.gl.glClearColor(0.13f, 0.13f, 0.13f, 1);
+			Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+			
+			guiBatch.begin();
+			GlyphLayout layout = new GlyphLayout();
+
+			String text = "";
+			if(COMPLETED_GAME){
+				text = "You won! To-dah!";
+			}else{
+				text = "You're HQ was blown up! Rats.";
+			}
+			layout.setText(Game.medium,text);	
+			medium.setColor(Color.WHITE);
+			medium.draw(guiBatch, text, (Gdx.graphics.getWidth()/2)-layout.width/2,Gdx.graphics.getHeight()/2);
+			
+			// if the failed
+			if(!COMPLETED_GAME){
+				text = "Sorry you're going to have restart the game to play again.";
+				layout.setText(Game.medium,text);	
+				medium.setColor(Color.WHITE);
+				medium.draw(guiBatch, text, (Gdx.graphics.getWidth()/2)-layout.width/2,(Gdx.graphics.getHeight()/2)-50);
+			}
+			
+			
+			guiBatch.end();
+			
+		}else{
+			Matrix4 defaultProjectionMatrix = batch.getProjectionMatrix();
+			
+			Gdx.gl.glClearColor(0, 0, 0, 1);
+			Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+
+			shader.begin();
+			shader.setUniformi("u_lightmap", 1);
+
+
+			ambientIntensity += (darkTarget-ambientIntensity)*0.1f;
+			
+	 
+			shader.setUniformf("ambientColor",ambientColor.x, ambientColor.y,
+					ambientColor.z, ambientIntensity);
+			shader.end();
+			
+			fbo.begin();
+				
+				batch.setProjectionMatrix(camera.combined);
+				batch.setShader(defaultShader);
+				Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+				
+				batch.begin();
+			
+					for(Light light:lights){
+//						light.render(batch);
+					}
+					for(Unit unit: getPlayerByName("Mali").getUnits()){
+						unit.light.render(batch);
+//						new Light(unit.getX()-unit.getWidth(),unit.getY()-unit.getHeight(),32,new Texture("light.png")).render(batch);;
+					}
+				
+				batch.setColor(1f, 1f, 1f, 1f);;
+				batch.end();
+			fbo.end();
+		
+			int width = Gdx.graphics.getWidth();
+		    int height = Gdx.graphics.getHeight();
+
+		    if(m_fboEnabled)      // enable or disable the supersampling
+		    {          
+
+		    	 m_fbo = new FrameBuffer(Format.RGB565, (int)(width * m_fboScaler), (int)(height * m_fboScaler), false);
+				m_fbo.getColorBufferTexture().setFilter(TextureFilter.Nearest, TextureFilter.Nearest);
+	            m_fboRegion = new TextureRegion(m_fbo.getColorBufferTexture());
+//	     
+	            m_fboRegion.flip(false, true);
+		        m_fbo.begin();
+		        
+		        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+			    // this is the main render function
+		        
+				shapeBatch.begin(ShapeType.Filled);
+				
+				map.render(shapeBatch);
+
+				shapeBatch.end();
+			    m_fbo.end();
+			    m_fboEnabled = false;
+		    }
+		    
+			batch.setProjectionMatrix(camera.combined);
+
+
+			shapeBatch.setProjectionMatrix(camera.combined);
+		
+			shapeBatch.begin(ShapeType.Filled);
+
+//			map.render(shapeBatch);
 
 			shapeBatch.end();
-		    m_fbo.end();
-		    m_fboEnabled = false;
-	    }
-	    
-		batch.setProjectionMatrix(camera.combined);
-
-
-		shapeBatch.setProjectionMatrix(camera.combined);
-	
-		shapeBatch.begin(ShapeType.Filled);
-
-//		map.render(shapeBatch);
-
-		shapeBatch.end();
-		batch.setShader(shader);
-		batch.begin();
-		fbo.getColorBufferTexture().bind(1); 
-		light.bind(0); 
-		
-		batch.draw(m_fboRegion, 0, 0);     
-		
-		// do not render units, until round is 2.
-		if(roundCounter > PLACE_HQ){
 			
-			for(Unit ourUnit: getPlayerByName("Mali").getUnits()){
-				ourUnit.render(batch);
+			
+			
+			
+			batch.setShader(shader);
+			batch.begin();
+			fbo.getColorBufferTexture().bind(1); 
+			light.bind(0); 
+			
+			batch.draw(m_fboRegion, 0, 0);     
+			
+			// do not render units, until round is 2.
+			if(roundCounter > PLACE_HQ){
 				
-				for(Player player: players){
-					if(!player.equals(getPlayerByName("Mali"))){
-						
-						ArrayList<Unit> units = player.getUnits();
-						for(Unit unit: units){
-							if(ourUnit.isNear(unit.getX(), unit.getY(), ourUnit.getRange())){
-								unit.render(batch);
+				for(Unit ourUnit: getPlayerByName("Mali").getUnits()){
+					ourUnit.render(batch);
+					if(ourUnit.getClass() == Airbase.class){
+						((Airbase) ourUnit).renderQuantity(batch);
+					}
+					
+					for(Player player: players){
+						if(!player.equals(getPlayerByName("Mali"))){
+							
+							ArrayList<Unit> units = player.getUnits();
+							for(Unit unit: units){
+								if(ourUnit.isNear(unit.getX(), unit.getY(), ourUnit.getRange())){
+									unit.render(batch);
+								}
+								
+//								unit.render(batch);// uncomment to view all units
 							}
 						}
 					}
+					
 				}
 				
+//				for(Player player: players){
+//					ArrayList<Unit> units = player.getUnits();
+//					for(Unit unit: units){
+//						unit.render(batch);
+//					}
+//				}
+				for(Projectile p: bullets){
+					p.render(batch);
+				}
+			}
+
+			batch.end();
+			batch.setShader(defaultShader);
+
+			
+			
+			
+
+			batch.begin();
+
+//			batch.draw(fog, 0,0);
+			
+			batch.end();
+			
+			shapeBatch.begin(ShapeType.Line);
+			shapeBatch.setColor(1,1,1,0.2f);
+			shapeBatch.rect(selection.x,selection.y,selection.width,selection.height);
+			
+			for(Unit unit: getPlayerByName("Mali").getUnits()){
+				unit.renderDirection(shapeBatch);
+			}
+			shapeBatch.end();
+			
+			
+			
+			
+			// render GUI fonts here
+			// placingUnits especially.
+			guiBatch.begin();
+
+			GlyphLayout layout = new GlyphLayout();
+			large.setColor(Color.WHITE);
+			if(roundCounter == PLACE_HQ){
+				layout.setText(Game.large,"Place your Headquarters");	
+				large.draw(guiBatch, "Place your Headquarters", 20,80);
+			}else if(roundCounter == PLACE_BUILDINGS){
+				layout.setText(Game.large,"Place your Buildings");	
+				large.draw(guiBatch, "Place your Buildings", 20,80);
+			}else if(roundCounter == DEPLOY_SCOUTS){
+				layout.setText(Game.large,"Deploy 5 Scouts");	
+				large.draw(guiBatch, "Deploy 5 Scouts", 20,80);
+			}else if(roundCounter == FULL_FIGHTING){
+				layout.setText(Game.large,"Attack!");	
+				large.draw(guiBatch, "Attack!", 20,80);
+				
+			}
+			tiny.setColor(Color.WHITE);
+			for(Button button: buttons){
+				if(roundCounter == PLACE_HQ && button.type == PLACE_HQ){
+					button.render(guiBatch);
+				}else if(roundCounter == PLACE_BUILDINGS
+						&& (button.type == MISSLE_LAUNCHER
+						|| button.type == ARTILLERY
+						|| button.type == AIRBASE)){
+					button.render(guiBatch);
+					Player counterPlayer = getPlayerByName("Mali");
+					if(button.type == MISSLE_LAUNCHER){
+						// render how many you have
+						layout.setText(Game.small,(5-counterPlayer.totalMissleLaunchers) + "/5");	
+						small.draw(guiBatch, (5-counterPlayer.totalMissleLaunchers) + "/5", button.x,button.y);
+					}else if(button.type == ARTILLERY){
+						layout.setText(Game.small,(5-counterPlayer.totalArtillery) + "/5");	
+						small.draw(guiBatch, (5-counterPlayer.totalArtillery) + "/5", button.x,button.y);
+					}else if(button.type == AIRBASE){
+						layout.setText(Game.small,(5-counterPlayer.totalAirbase) + "/5");	
+						small.draw(guiBatch,(5-counterPlayer.totalAirbase) + "/5", button.x,button.y);
+					}
+				}
 			}
 			
-//			for(Player player: players){
-//				ArrayList<Unit> units = player.getUnits();
-//				for(Unit unit: units){
-//					unit.render(batch);
-//				}
-//			}
-			for(Projectile p: bullets){
-				p.render(batch);
-			}
+			guiBatch.end();
+//			System.out.println(roundCounter);
 		}
-
-		batch.end();
-		batch.setShader(defaultShader);
-
+		Gdx.gl.glEnable(GL20.GL_BLEND);
+		Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+		shapeBatch.begin(ShapeType.Filled);
+		shapeBatch.setColor(new Color(0f,0f,0f,fade));
+		shapeBatch.rect(0,0,Gdx.graphics.getWidth(),Gdx.graphics.getHeight());
 		
-		
-		
-
-		batch.begin();
-
-//		batch.draw(fog, 0,0);
-		
-		batch.end();
-		
-		shapeBatch.begin(ShapeType.Line);
-		shapeBatch.setColor(1,1,1,0.2f);
-		shapeBatch.rect(selection.x,selection.y,selection.width,selection.height);
 		shapeBatch.end();
-		
-		// render GUI fonts here
-		// placingUnits especially.
 	}
 	
 
@@ -427,16 +579,28 @@ public class Game extends ApplicationAdapter implements InputProcessor {
 			for(Unit u: player.getUnits()){
 				if(!u.isDead()){
 					newUnits.add(u);
+				}else{
+					if(u.getClass() == uk.slowpoke.ld38.entities.HQ.class){
+						u.getOwner().hqDead = true;
+					}
 				}
 			}
 			player.setUnits(newUnits);
 		}
 	
 		roundHandler();
+		
 	}
 	
 	public void roundHandler(){
-		if(roundCounter == 0){
+		if(roundCounter == MENU){
+			// then we need 
+			if(fade > 0.9f){
+				roundCounter = PLACE_HQ;
+			}
+		}
+		else if(roundCounter == PLACE_HQ){
+			fadeToColour();
 			boolean advanceRound = true;// we can move forward if everyone places their HQ
 			// allow HQ's to be placed first
 			for(Player p: players){
@@ -445,14 +609,95 @@ public class Game extends ApplicationAdapter implements InputProcessor {
 				}
 			}
 			if(advanceRound){
-				darkTarget = 0.2f;
+				darkTarget = 0.4f;
 			}
 			
-			if(advanceRound && ambientIntensity <= 0.3f){
+			if(advanceRound && ambientIntensity <= 0.5f){
+				for(Player player: players){
+					if (player.getClass() == AI.class) {
+						((AI) player).placeBuildings();
+					}
+				}
 				advanceRound();
 			}
-		}	
+		}else if(roundCounter == PLACE_BUILDINGS){
+			boolean advanceRound = true;// we can move forward if everyone places their HQ
+			// allow HQ's to be placed first
+			for(Player p: players){
+				if(!p.placedAllBuildings()){
+					advanceRound = false;
+				}
+			}
+
+			
+			if(advanceRound){
+				for(Player player: players){
+					if (player.getClass() == AI.class) {
+						((AI) player).deployScouts();
+					}
+				}
+				placingUnits = false;
+				advanceRound();
+			}
+		}else if(roundCounter == DEPLOY_SCOUTS){
+			boolean advanceRound = true;// we can move forward if everyone places their HQ
+			// allow HQ's to be placed first
+			for(Player p: players){
+				if(!p.deployedAllScouts()){
+					advanceRound = false;
+				}
+			}
+
+			
+			if(advanceRound){
+				for(Player player: players){
+					if (player.getClass() == AI.class) {
+						((AI) player).deployAllUnits();
+					}
+				}
+				
+				advanceRound();
+			}
+		}
+		else if(roundCounter == FULL_FIGHTING){
+			Player player = getPlayerByName("Mali");
+			boolean youwon = true;
+			for(Player p: players){
+				
+				if(!p.equals(player)){
+					if(!p.hqDead){
+						// if they still have a hq and aren't us then you haven't won yet.
+						youwon = false;
+					}
+				}else{
+					if(player.hqDead){
+						System.out.println("YOU DEAD");
+						fadeToBlack();
+						if(fade > 0.9f){
+							COMPLETED_GAME = false;
+							roundCounter = GAMEOVER;
+						}
+					}
+				}
+			}
+			if(youwon){
+				
+				System.out.println("YOU WON!");
+				fadeToBlack();
+				if(fade > 0.9f){
+					roundCounter = GAMEOVER;
+					COMPLETED_GAME = true;
+				}
+			}
+		}else if(roundCounter == GAMEOVER){
+			fadeToColour();
+//			if(fade > 0.9f){
+//				resetEverything();
+//				roundCounter = MENU;
+//			}
+		}
 	}
+
 	
 	public void advanceRound(){
 		roundCounter++;
@@ -467,6 +712,18 @@ public class Game extends ApplicationAdapter implements InputProcessor {
 
 	@Override
 	public boolean keyDown(int key) {
+		if(roundCounter == MENU){
+			if(key == Keys.SPACE){
+				fadeToBlack();
+			}
+		}
+		if(roundCounter == GAMEOVER){
+			if(key == Keys.SPACE){
+				fadeToBlack();
+				System.out.println(fadeTarget + " RESTART");
+			}
+		}
+		
 		if(key == Keys.A || key == Keys.LEFT){
 			left = true;
 		}
@@ -479,9 +736,9 @@ public class Game extends ApplicationAdapter implements InputProcessor {
 		if(key == Keys.W || key == Keys.UP){
 			up = true;
 		}
-		if(key == Keys.SHIFT_LEFT){
-			placingUnits = !placingUnits;
-		}
+//		if(key == Keys.SHIFT_LEFT){
+//			placingUnits = !placingUnits;
+//		}
 		if(roundCounter == PLACE_HQ){
 			if(key == Keys.NUM_1){
 				unitType = HQ;
@@ -493,15 +750,11 @@ public class Game extends ApplicationAdapter implements InputProcessor {
 			if(key == Keys.NUM_2){
 				unitType = ARTILLERY;
 			}
-		}else if(roundCounter == DEPLOY_SCOUTS){
-			if(key == Keys.NUM_1){
-				unitType = SCOUT;
-			}
-		}else if(roundCounter == FULL_FIGHTING){// can also launch missles
-			if(key == Keys.NUM_1){
-				unitType = BOMBER;
+			if(key == Keys.NUM_3){
+				unitType = AIRBASE;
 			}
 		}
+
 		
 		return false;
 	}
@@ -531,12 +784,66 @@ public class Game extends ApplicationAdapter implements InputProcessor {
 		// TODO Auto-generated method stub
 		return false;
 	}
+	
+	public void fadeToBlack(){
+		fadeTarget = 1f;
+	}
+	public void fadeToColour(){
+		fadeTarget = 0f;
+	}
 
 	@Override
 	public boolean touchDown(int screenX, int screenY, int pointer, int button) {
+		GlyphLayout layout = new GlyphLayout();
+
+//		layout.setText(Game.medium,"Play.");	
+//		mouse.x = screenX;
+//		mouse.y = 600-screenY;
+//		Rectangle rect = new Rectangle(20,120-20,layout.width,layout.height*4);
+//		System.out.println(mouse.dst(20,120));
+//
+//		if(rect.contains(mouse)){
+//			
+//		}
 		Vector3 position = camera.unproject(new Vector3(screenX, screenY, camera.zoom));
+		
+		
 		mouse.x = (int) (position.x);
 		mouse.y = (int) (position.y);
+		System.out.println(button);
+
+		if(roundCounter >= DEPLOY_SCOUTS){
+			// if the player clicks on the airbase
+			Player player = getPlayerByName("Mali");
+			ArrayList<Unit> tempUnits = new ArrayList<Unit>();
+			
+			for(Unit unit: player.getUnits()){
+				if(unit.getClass() == Airbase.class){
+					if(unit.isNear(position.x, position.y, 5)){
+						// then we want to deploy a plane
+						if(((Airbase)unit).getTotalDeployed() < 30){
+							if(roundCounter == DEPLOY_SCOUTS){
+								tempUnits.add(((Airbase) unit).deployAircraft(2));
+							}else{
+								if(button == 0){
+									tempUnits.add(((Airbase) unit).deployAircraft(2));
+								}else if(button == 1){
+									tempUnits.add(((Airbase) unit).deployAircraft(1));
+								}
+
+							}
+						}
+					}
+				}
+			}
+			
+			
+			for(Unit unit: tempUnits){
+				player.setDeployedScouts(player.getDeployedScouts() + 1);
+				player.getUnits().add(unit);
+			}
+		}
+
 
 		if(getPlayerByName("Mali") != null && button == 0 && placingUnits){
 			// only add units if in that mode
@@ -598,6 +905,9 @@ public class Game extends ApplicationAdapter implements InputProcessor {
 //		lights.get(0).setY(position.y);
 		lightDebug.x = position.x;
 		lightDebug.y = position.y;
+		
+		mouse.x = screenX;
+		mouse.y = 600-screenY;
 		return false;
 	}
 

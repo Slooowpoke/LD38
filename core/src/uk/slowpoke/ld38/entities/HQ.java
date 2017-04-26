@@ -7,6 +7,6 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 public class HQ extends LandEntity{
 
 	public HQ(float x, float y,Player owner) {
-		super(x, y, 20, owner,new Sprite(new Texture("HQ.png")));
+		super(x, y,0,0, 20, owner,new Sprite(new Texture("HQ.png")),10);
 	}
 }

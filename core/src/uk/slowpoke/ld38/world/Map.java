@@ -37,7 +37,7 @@ public class Map {
 	private List<Island> islands = new ArrayList<Island>();
 	
 	public Map(){
-		SimplexNoise simplexNoise = new SimplexNoise(300,0.38,random.nextInt());
+		SimplexNoise simplexNoise = new SimplexNoise(240,0.39,random.nextInt());
 
 		for(int x = 0; x < WIDTH; x++){
 			for(int y = 0; y < HEIGHT; y++){
@@ -49,11 +49,15 @@ public class Map {
 		for(int x = 0; x < WIDTH; x++){
 			for(int y = 0; y < HEIGHT; y++){
 				double value = simplexNoise.getNoise(x, y);
-				if(value > 0.2){
+				if(value > 0.3){
 					data[x][y] = GROUND;
 				}
 			}
 		}
+
+	}
+	
+	public void generateIslands(){
 
 		
 		// check through all the ground tiles and create some islands
@@ -209,16 +213,10 @@ public class Map {
 	}
 	
 	public void render(ShapeRenderer batch){
-		batch.setColor(Color.WHITE);
-		batch.rect(0, 0,WIDTH,HEIGHT);
+
 		for(int x = 0; x < WIDTH; x++){
 			for(int y = 0; y < HEIGHT; y++){
-//				if(data[x][y] == TEMP){
-//					batch.setColor(Color.RED);
-//					batch.rect(x, y,1,1);
-//				}
-				
-				
+
 					if(!borderOnly){
 						if(world[x][y] != null){
 //							batch.setColor(world[x][y].colour);
@@ -297,5 +295,31 @@ public class Map {
 
 	public void setIslands(List<Island> islands) {
 		this.islands = islands;
+	}
+
+	public boolean checkIfLand(int x2, int y2) {
+		for(int x = 0; x < WIDTH; x++){
+			for(int y = 0; y < HEIGHT; y++){
+				if(x == x2 && y == y2 && world[x][y] != null){
+					return true;
+				}
+			}
+		}
+
+		return false;
+	}
+	public boolean checkIfMyLand(int x2, int y2, String playerName) {
+		for(int x = 0; x < WIDTH; x++){
+			for(int y = 0; y < HEIGHT; y++){
+				if(x == x2 
+						&& y == y2 
+						&& world[x][y] != null 
+						&& world[x][y].name.equals(playerName)){
+					return true;
+				}
+			}
+		}
+
+		return false;
 	}
 }

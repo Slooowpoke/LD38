@@ -7,6 +7,6 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 public class Bomber extends AirEntity{
 
 	public Bomber(float x, float y,Player owner) {
-		super(x, y, 20, owner,new Sprite(new Texture("bomber.png")));
+		super(x, y,0,0, 20, owner,new Sprite(new Texture("bomber.png")),20);
 	}
 }

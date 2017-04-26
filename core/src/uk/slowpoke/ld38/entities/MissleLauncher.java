@@ -7,6 +7,6 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 public class MissleLauncher extends LandEntity{
 
 	public MissleLauncher(float x, float y,Player owner) {
-		super(x, y, 20, owner,new Sprite(new Texture("misslelauncher.png")));
+		super(x, y,0,0, 20, owner,new Sprite(new Texture("misslelauncher.png")),20);
 	}
 }

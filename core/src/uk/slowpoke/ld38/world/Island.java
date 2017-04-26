@@ -9,13 +9,13 @@ public class Island {
 	public ArrayList<Vector2> data = new ArrayList<Vector2>();
 	
 	// as in 0 being no owner.
-	public int OWNER = 0;
+	public int owner = 0;
 	
 	public Island(ArrayList<Vector2> data){
 		this.data = data;
 	}
 	
-	public void assign(int OWNER){
-		this.OWNER = OWNER;
+	public void assign(int owner){
+		this.owner = owner;
 	}
 }
